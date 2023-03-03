@@ -1,0 +1,111 @@
+# wqBackup
+
+$option = Read-Host "Please select an option:
+
+1. Backup
+2. File Removal
+3. Schedule Backups
+4. Schedule Removals
+
+"
+
+switch($option)
+{
+
+    1 { 
+$SourcePath = Read-Host "Enter item to backup. Example; C:\Drive: 
+"
+$DestinationPath = Read-Host "Enter destination for the backup. Example; D:\Backup Test: 
+"
+$Timestamp = Get-Date -Format HHmm_MM-dd-yyyy
+$BackupPath = Join-Path -Path $DestinationPath -ChildPath $Timestamp
+$UnzippedBackup = New-Item -Path $BackupPath -ItemType Directory
+
+Copy-Item -Path $SourcePath -Destination $BackupPath
+Compress-Archive -Path $DestinationPath -DestinationPath $BackupPath -CompressionLevel Optimal
+Remove-Item -Recurse -Force $UnzippedBackup
+
+$LogFile = "log.txt"
+$LogPath = $DestinationPath
+
+If(Test-Path (Join-Path -Path $LogPath -ChildPath $LogFile))
+{
+Add-Content -Path (Join-Path -Path $LogPath -ChildPath $LogFile) -Value $Timestamp 
+}
+Else
+{
+New-Item -Name log.txt -Path $DestinationPath -ItemType File
+Add-Content -Path (Join-Path -Path $LogPath -ChildPath $LogFile) -Value $Timestamp
+}
+
+Write-Host "Your backup has been completed and logged to the log file." 
+}
+
+    2 { 
+$frDirectory = Read-Host "Where would you like to remove? 
+"
+Get-ChildItem $frDirectory -Recurse -Force | Remove-Item
+Write-Host "The files have been removed.
+Thank you for using Quick Backup."
+}
+
+    3 { 
+$sbSource = Read-Host "Enter the item to schedule a backup task for?
+"
+$sbDestination = Read-Host "Enter the destination for the backup to be stored.
+"
+$sbAt = Read-Host "What time would you like for the schedule? "12:00am" 
+"
+$sbDOW = Read-Host "What days of the week would you like this to be scheduled? 
+"
+$sbJob = New-JobTrigger -At $sbAt -DaysOfWeek $sbDOW -Weekly
+Register-ScheduledJob -Name scheduledBackup -ScriptBlock {
+$sbTimestamp = Get-Date -Format HHmm_MM-dd-yyyy
+$sbBackupPath = Join-Path -Path $sbDestination -ChildPath $sbTimestamp
+$sbUnzippedBackup = New-Item -Path $sbBackupPath -ItemType Directory
+
+Copy-Item -Path $sbSource -Destination $sbDestination
+Compress-Archive -Path $sbDestination -DestinationPath $sbBackupPath -CompressionLevel Optimal
+Remove-Item -Recurse -Force $sbUnzippedBackup
+
+$sbLogFile = "log.txt"
+$sbLogPath = $sbDestination
+
+If(Test-Path (Join-Path -Path $sbLogPath -ChildPath $sbLogFile))
+{
+Add-Content -Path (Join-Path -Path $sbLogPath -ChildPath $sbLogFile) -Value $sbTimestamp 
+}
+Else
+{
+New-Item -Name log.txt -Path $sbDestination -ItemType File
+Add-Content -Path (Join-Path -Path $sbLogPath -ChildPath $sbLogFile) -Value $sbTimestamp
+}
+$sbJobDisplay = Get-ScheduledJob
+Write-Host "Your backup has been completed, scheduled and logged to the log file. It should be displayed now or can be displayed using "Get-Scheduled-Job."
+$sbJobDisplay" 
+}
+}
+
+    4 { 
+$srDirectory = Read-Host "What directory would you like to schedule a sweep job for?
+"
+$srCutoff = Read-Host "What is the maximum lifetime you would like for your files in months? 
+"
+$srAt = Read-Host "What time would you like for the schedule? "12:00am" 
+"
+$srDOW = Read-Host "What days of the week would you like this to be scheduled? 
+"
+$srJob = New-JobTrigger -At $srAt -DaysOfWeek $srDOW -Weekly
+Register-ScheduledJob -Name scheduledRemoval -ScriptBlock {Get-ChildItem $srDirectory -Recurse -Force | Where-Object {$_.LastWriteTime -lt (Get-Date).AddMonths($srCutoff) -and $_.Name -notlike "log.txt"} | Remove-Item -Recurse -Force} -Trigger $srJob
+$srJobDisplay = Get-ScheduledJob
+Write-Host "
+Your scheduled job is displayed or can be displayed by using "Get-ScheduledJob".
+$srJobDisplay"
+Write-Host "
+Your job has been scheduled.
+
+Thank you for using Quick Backup."
+}
+
+    default { Write-Host "Invalid selection, please try again." }
+}
